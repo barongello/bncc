@@ -1,5 +1,9 @@
 @import './base.css';
 
+.q-list--dark {
+  background: var(--q-dark);
+}
+
 #app {
   max-width: 1280px;
   margin: 0 auto;

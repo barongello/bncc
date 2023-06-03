@@ -1,4 +1,10 @@
 <script lang="ts">
+// TODO Serialize/deserialize localStorage
+// TODO Export to Google Docs
+// TODO Integrate ChatGPT?
+
+import * as docx from 'docx'
+import { saveAs } from 'file-saver'
 import { useQuasar } from 'quasar'
 
 export default {
@@ -90,12 +96,48 @@ export default {
     }
   },
   watch: {
+    curriculum: {
+      deep: true,
+      handler() {
+        window.localStorage.setItem('curriculum', JSON.stringify(this.curriculum))
+      }
+    },
     forPrinting() {
+      window.localStorage.setItem('forPrinting', Number(this.forPrinting).toString())
+
       if (this.forPrinting === true) {
         return
       }
 
       this.deselectContentsTable()
+    },
+    selectedArea() {
+      if (this.selectedArea) {
+        window.localStorage.setItem('selectedArea', this.selectedArea)
+      } else {
+        window.localStorage.removeItem('selectedArea')
+      }
+    },
+    selectedAgeGroup() {
+      if (this.selectedAgeGroup) {
+        window.localStorage.setItem('selectedAgeGroup', this.selectedAgeGroup)
+      } else {
+        window.localStorage.removeItem('selectedAgeGroup')
+      }
+    },
+    selectedExperienceField() {
+      if (this.selectedExperienceField) {
+        window.localStorage.setItem('selectedExperienceField', this.selectedExperienceField)
+      } else {
+        window.localStorage.removeItem('selectedExperienceField')
+      }
+    },
+    selectedContent() {
+      if (this.selectedContent) {
+        window.localStorage.setItem('selectedContent', this.selectedContent)
+      } else {
+        window.localStorage.removeItem('selectedContent')
+      }
     }
   },
   methods: {
@@ -129,17 +171,24 @@ export default {
         experienceFields: {}
       }
 
+      this.forPrinting = false
+
       this.selectedAgeGroup = null
       this.selectedArea = null
       this.selectedExperienceField = null
       this.selectedContent = null
 
       this.$q.notify({
+        color: 'green',
+        icon: 'delete',
         message: 'Todos os conteúdos foram apagados',
-        position: 'top',
-        timeout: 3000,
-        type: 'info'
+        position: 'bottom-left',
+        timeout: 3000
       })
+
+      setTimeout(() => {
+        this.$refs.area.focus()
+      }, 1)
     },
     copyContentsTable() {
       this.selectContentsTable()
@@ -150,10 +199,10 @@ export default {
 
       this.$q.notify({
         color: 'green',
+        icon: 'content_copy',
         message: 'A tabela de conteúdos foi copiada para a área de transferência',
         position: 'bottom-left',
-        timeout: 3000,
-        type: 'info'
+        timeout: 3000
       })
     },
     deselectContentsTable() {
@@ -211,6 +260,178 @@ export default {
           .sort((a: any, b: any) => a.label.localeCompare(b.label))
       })
     },
+    generateDocx() {
+      const rows = [
+        new docx.TableRow({
+          children: [
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: "CAMPO DE EXPERIÊNCIA"
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            }),
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: "OBJETIVOS DE APRENDIZAGEM"
+                }),
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_5,
+                  text: "(Habilidades: o que a criança vai aprender)"
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            }),
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: "ESTRATÉGIAS"
+                }),
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_5,
+                  text: "(Como ensinar/metodologia)"
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            }),
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: "AVALIAÇÃO"
+                }),
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_5,
+                  text: "(Monitorar/analisar)"
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            })
+          ],
+          tableHeader: true
+        })
+      ]
+      for(const [rowIndex, experienceField] of this.contentsExperienceFields.entries()) {
+        const children = [
+          new docx.TableCell({
+            children: [
+              new docx.Paragraph({
+                heading: docx.HeadingLevel.HEADING_4,
+                text: `${rowIndex + 1}. ${experienceField}`
+              })
+            ]
+          })
+        ]
+
+        children.push(new docx.TableCell({
+          children: this.curriculum.experienceFields[experienceField].contents
+            .map((content: string, contentIndex: number) => {
+              const contentResult = []
+
+              if(contentIndex > 0) {
+                contentResult.push(new docx.Paragraph({}))
+              }
+
+              contentResult.push(
+                this.bnccData.contentsByCode[content].objectives
+                  .map((objective: string, objectiveIndex: number) => new docx.Paragraph({
+                    text: `${objectiveIndex === 0 ? '(' + content + ') ' : ''}${objective}`
+                  }))
+              )
+
+              return contentResult.flat()
+            })
+            .flat()
+        }))
+
+        children.push(new docx.TableCell({
+          children: this.curriculum.experienceFields[experienceField].strategies
+            .replace(/\r/g, '')
+            .split('\n')
+            .map((strategy: string) => new docx.Paragraph({
+              text: strategy
+            }))
+        }))
+
+        if(rowIndex === 0) {
+          children.push(new docx.TableCell({
+            children: this.curriculum.assessment
+              .replace(/\r/g, '')
+              .split('\n')
+              .map((assessmentLine: string) => new docx.Paragraph({
+                text: assessmentLine
+              })),
+            rowSpan: this.contentsExperienceFields.length
+          }))
+        }
+
+        rows.push(new docx.TableRow({
+          children
+        }))
+      }
+
+      const table = new docx.Table({
+        rows,
+        columnWidths: [
+          docx.convertMillimetersToTwip(159.2 * 0.25),
+          docx.convertMillimetersToTwip(159.2 * 0.25),
+          docx.convertMillimetersToTwip(159.2 * 0.25),
+          docx.convertMillimetersToTwip(159.2 * 0.25)
+        ]
+      })
+
+      const doc = new docx.Document({
+        sections: [
+          {
+            children: [
+              table
+            ]
+          }
+        ],
+        styles: {
+          default: {
+            heading3: {
+              run: {
+                bold: true,
+                size: 24
+              }
+            },
+            heading4: {
+              run: {
+                bold: true,
+                size: 22
+              }
+            },
+            heading5: {
+              run: {
+                bold: false,
+                size: 22
+              }
+            }
+          }
+        }
+      })
+
+      docx.Packer.toBlob(doc)
+        .then(blob => {
+          const mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          const docblob = blob.slice(0, blob.size, mimeType)
+
+          saveAs(docblob, "Currículo BNCC.docx")
+        })
+    },
     selectContentsTable() {
       const el = document.querySelector('.contents-table')
       const range = document.createRange()
@@ -238,6 +459,50 @@ export default {
       .then((response) => response.json())
       .then((json) => {
         this.bnccData = json
+
+        const selectedArea = window.localStorage.getItem('selectedArea')
+
+        if (selectedArea) {
+          this.selectedArea = selectedArea
+        }
+
+        const selectedAgeGroup = window.localStorage.getItem('selectedAgeGroup')
+
+        if (selectedAgeGroup) {
+          this.selectedAgeGroup = selectedAgeGroup
+        }
+
+        const selectedExperienceField = window.localStorage.getItem('selectedExperienceField')
+
+        if (selectedExperienceField) {
+          this.selectedExperienceField = selectedExperienceField
+        }
+
+        const selectedContent = window.localStorage.getItem('selectedContent')
+
+        if (selectedContent) {
+          this.selectedContent = selectedContent
+        }
+
+        const curriculum = window.localStorage.getItem('curriculum')
+
+        if (curriculum) {
+          this.curriculum = JSON.parse(curriculum)
+        }
+
+        const forPrinting = window.localStorage.getItem('forPrinting')
+
+        if (forPrinting) {
+          this.forPrinting = Boolean(Number(forPrinting))
+        }
+
+        setTimeout(() => {
+          if (selectedArea && selectedAgeGroup && selectedExperienceField) {
+            this.$refs.content.focus()
+          } else {
+            this.$refs.area.focus()
+          }
+        }, 0)
       })
       .catch(() => (this.error = true))
       .finally(() => (this.loading = false))
@@ -258,6 +523,7 @@ export default {
       emit-value
       label="Área"
       outlined
+      ref="area"
       v-model="selectedArea"
       :disable="hasContents"
       :options="areaOptions"
@@ -356,7 +622,7 @@ export default {
 
     <q-separator />
 
-    <q-tab-panels animated dark swipeable v-model="tab">
+    <q-tab-panels animated dark v-model="tab">
       <q-tab-panel name="informations">
         <q-expansion-item
           group="informations"
@@ -503,102 +769,132 @@ export default {
 
           <q-space />
 
-          <q-btn
-            class="q-mr-sm"
-            color="primary"
-            label="Selecionar"
-            :disable="!forPrinting"
-            @click="selectContentsTable"
-          />
+          <q-btn-dropdown color="green" label="Exportar">
+            <q-list bordered dark>
+              <q-item clickable v-close-popup :disable="!forPrinting" @click="selectContentsTable">
+                <q-item-section side>
+                  <q-icon name="select_all" />
+                </q-item-section>
 
-          <q-btn color="green" label="Copiar" :disable="!forPrinting" @click="copyContentsTable" />
+                <q-item-section>
+                  <q-item-label>Selecionar apenas</q-item-label>
+                </q-item-section>
+              </q-item>
+
+              <q-item clickable v-close-popup :disable="!forPrinting" @click="copyContentsTable">
+                <q-item-section side>
+                  <q-icon name="content_copy" />
+                </q-item-section>
+
+                <q-item-section>
+                  <q-item-label>Área de transferência</q-item-label>
+                </q-item-section>
+              </q-item>
+
+              <q-item clickable v-close-popup @click="generateDocx">
+                <q-item-section side>
+                  <q-icon name="description" />
+                </q-item-section>
+
+                <q-item-section>
+                  <q-item-label>DOCX</q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
         </div>
 
-        <table
-          cellpadding="0"
-          cellspacing="0"
-          class="contents-table"
-          v-if="hasContents"
-          :class="{ print: forPrinting }"
-        >
-          <thead>
-            <th>
-              <span> CAMPO DE EXPERIÊNCIA </span>
-            </th>
+        <div :class="['contents-table-wrapper', { print: forPrinting }]">
+          <table
+            cellpadding="0"
+            cellspacing="0"
+            class="contents-table"
+            v-if="hasContents"
+            :class="{ print: forPrinting }"
+          >
+            <thead>
+              <th>
+                <span class="text-weight-bold">CAMPO DE EXPERIÊNCIA</span>
+              </th>
 
-            <th>
-              <span> OBJETIVOS DE APRENDIZAGEM </span>
+              <th>
+                <span class="text-weight-bold">OBJETIVOS DE APRENDIZAGEM</span>
 
-              <span> (Habilidades: o que a criança vai aprender) </span>
-            </th>
+                <span>(Habilidades: o que a criança vai aprender)</span>
+              </th>
 
-            <th>
-              <span> ESTRATÉGIAS </span>
+              <th>
+                <span class="text-weight-bold">ESTRATÉGIAS</span>
 
-              <span> (Como ensinar/metodologia) </span>
-            </th>
+                <span>(Como ensinar/metodologia)</span>
+              </th>
 
-            <th>
-              <span> AVALIAÇÃO </span>
+              <th>
+                <span class="text-weight-bold">AVALIAÇÃO</span>
 
-              <span> (Monitorar/Analisar) </span>
-            </th>
-          </thead>
+                <span>(Monitorar/Analisar)</span>
+              </th>
+            </thead>
 
-          <tbody>
-            <tr
-              v-for="(
-                contentExperienceField, contentExperienceFieldIndex
-              ) in contentsExperienceFields"
-              :key="contentExperienceField"
-            >
-              <td>{{ contentExperienceFieldIndex + 1 }}. {{ contentExperienceField }}</td>
-
-              <td>
-                <span
-                  v-for="content in curriculum.experienceFields[contentExperienceField].contents"
-                  :key="content"
-                >
-                  ({{ content }}) {{ bnccData.contentsByCode[content].objectives[0] }}
-                </span>
-              </td>
-
-              <td>
-                <q-input
-                  dark
-                  filled
-                  type="textarea"
-                  v-model="curriculum.experienceFields[contentExperienceField].strategies"
-                  v-if="!forPrinting"
-                />
-
-                <span
-                  class="span-pre"
-                  v-else
-                  v-text="curriculum.experienceFields[contentExperienceField].strategies"
-                ></span>
-              </td>
-
-              <td
-                v-if="contentExperienceFieldIndex === 0"
-                :rowspan="Object.keys(curriculum.experienceFields).length"
+            <tbody>
+              <tr
+                v-for="(
+                  contentExperienceField, contentExperienceFieldIndex
+                ) in contentsExperienceFields"
+                :key="contentExperienceField"
               >
-                <q-input
-                  dark
-                  filled
-                  type="textarea"
-                  v-model="curriculum.assessment"
-                  v-if="!forPrinting"
-                  :input-style="{ resize: 'none' }"
-                />
+                <td class="text-weight-bold">
+                  {{ contentExperienceFieldIndex + 1 }}. {{ contentExperienceField }}
+                </td>
 
-                <span class="span-pre" v-else v-text="curriculum.assessment"></span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <td>
+                  <span
+                    v-for="content in curriculum.experienceFields[contentExperienceField].contents"
+                    :key="content"
+                  >
+                    ({{ content }}) {{ bnccData.contentsByCode[content].objectives[0] }}
+                  </span>
+                </td>
 
-        <span v-else> Nenhum conteúdo adicionado </span>
+                <td>
+                  <q-input
+                    dark
+                    dense
+                    filled
+                    type="textarea"
+                    v-model="curriculum.experienceFields[contentExperienceField].strategies"
+                    v-if="!forPrinting"
+                  />
+
+                  <span
+                    class="span-pre"
+                    v-else
+                    v-text="curriculum.experienceFields[contentExperienceField].strategies"
+                  ></span>
+                </td>
+
+                <td
+                  v-if="contentExperienceFieldIndex === 0"
+                  :rowspan="Object.keys(curriculum.experienceFields).length"
+                >
+                  <q-input
+                    dark
+                    dense
+                    filled
+                    type="textarea"
+                    v-model="curriculum.assessment"
+                    v-if="!forPrinting"
+                    :input-style="{ resize: 'none' }"
+                  />
+
+                  <span class="span-pre" v-else v-text="curriculum.assessment"></span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <span v-else> Nenhum conteúdo adicionado </span>
+        </div>
       </q-tab-panel>
     </q-tab-panels>
   </q-card>
@@ -607,6 +903,10 @@ export default {
 <style lang="scss" scoped>
 .bncc-paragraph {
   text-indent: 2cm;
+}
+
+.contents-table-wrapper.print {
+  background: #fff;
 }
 
 .contents-table {
@@ -621,11 +921,7 @@ export default {
         display: block;
         font-size: 12px;
 
-        &:first-of-type {
-          font-weight: bold;
-        }
-
-        &:last-of-type {
+        &:not(:first-of-type) {
           font-size: 11px;
         }
       }
@@ -635,6 +931,7 @@ export default {
   td {
     border: 0.5px solid #fff;
     text-align: justify;
+    vertical-align: top;
 
     > span {
       display: block;
@@ -656,7 +953,6 @@ export default {
   }
 
   &.print {
-    background: #fff;
     border-color: #000;
     color: #000;
     user-select: text;
