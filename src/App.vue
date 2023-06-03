@@ -18,10 +18,22 @@ export default {
         assessment: '',
         experienceFields: {}
       },
+      documentOptions: {
+        margin: {
+          horizontal: 10,
+          vertical: 20
+        },
+        page: {
+          height: 297,
+          width: 210
+        }
+      },
       error: false,
       filteredContentOptions: null,
       forPrinting: false,
       importBase64Text: null,
+      justifyText: true,
+      landscape: false,
       loading: true,
       selectedAgeGroup: null,
       selectedArea: null,
@@ -112,6 +124,12 @@ export default {
       }
 
       this.deselectContentsTable()
+    },
+    justifyText() {
+      window.localStorage.setItem('justifyText', Number(this.justifyText).toString())
+    },
+    landscape() {
+      window.localStorage.setItem('landscape', Number(this.landscape).toString())
     },
     selectedArea() {
       if (this.selectedArea) {
@@ -229,6 +247,8 @@ export default {
       const dataToExport = {
         curriculum: this.curriculum,
         forPrinting: this.forPrinting,
+        justifyText: this.justifyText,
+        landscape: this.landscape,
         selectedAgeGroup: this.selectedAgeGroup,
         selectedArea: this.selectedArea,
         selectedContent: this.selectedContent,
@@ -267,7 +287,7 @@ export default {
               children: [
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
+                  style: 'tableHeaderText',
                   text: 'CAMPO DE EXPERIÊNCIA'
                 })
               ],
@@ -277,12 +297,12 @@ export default {
               children: [
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
+                  style: 'tableHeaderText',
                   text: 'OBJETIVOS DE APRENDIZAGEM'
                 }),
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_5,
+                  style: 'tableHeaderSubText',
                   text: '(Habilidades: o que a criança vai aprender)'
                 })
               ],
@@ -292,12 +312,12 @@ export default {
               children: [
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
+                  style: 'tableHeaderText',
                   text: 'ESTRATÉGIAS'
                 }),
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_5,
+                  style: 'tableHeaderSubText',
                   text: '(Como ensinar/metodologia)'
                 })
               ],
@@ -307,12 +327,12 @@ export default {
               children: [
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
+                  style: 'tableHeaderText',
                   text: 'AVALIAÇÃO'
                 }),
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_5,
+                  style: 'tableHeaderSubText',
                   text: '(Monitorar/analisar)'
                 })
               ],
@@ -328,7 +348,8 @@ export default {
           new docx.TableCell({
             children: [
               new docx.Paragraph({
-                heading: docx.HeadingLevel.HEADING_4,
+                alignment: this.justifyText ? docx.AlignmentType.JUSTIFIED : void 0,
+                style: 'tableCellBold',
                 text: `${rowIndex + 1}. ${experienceField}`
               })
             ]
@@ -349,6 +370,7 @@ export default {
                   this.bnccData.contentsByCode[content].objectives.map(
                     (objective: string, objectiveIndex: number) =>
                       new docx.Paragraph({
+                        alignment: this.justifyText ? docx.AlignmentType.JUSTIFIED : void 0,
                         text: `${objectiveIndex === 0 ? '(' + content + ') ' : ''}${objective}`
                       })
                   )
@@ -368,6 +390,7 @@ export default {
               .map(
                 (strategy: string) =>
                   new docx.Paragraph({
+                    alignment: this.justifyText ? docx.AlignmentType.JUSTIFIED : void 0,
                     text: strategy
                   })
               )
@@ -383,6 +406,7 @@ export default {
                 .map(
                   (assessmentLine: string) =>
                     new docx.Paragraph({
+                      alignment: this.justifyText ? docx.AlignmentType.JUSTIFIED : void 0,
                       text: assessmentLine
                     })
                 ),
@@ -398,52 +422,89 @@ export default {
         )
       }
 
+      const pageSize = this.landscape
+        ? this.documentOptions.page.height
+        : this.documentOptions.page.width
+      const pageMargin = this.documentOptions.margin.horizontal
+      const columnWidth = (pageSize - pageMargin * 2) * 0.25
       const table = new docx.Table({
         rows,
         columnWidths: [
-          docx.convertMillimetersToTwip(159.2 * 0.25),
-          docx.convertMillimetersToTwip(159.2 * 0.25),
-          docx.convertMillimetersToTwip(159.2 * 0.25),
-          docx.convertMillimetersToTwip(159.2 * 0.25)
+          docx.convertMillimetersToTwip(columnWidth),
+          docx.convertMillimetersToTwip(columnWidth),
+          docx.convertMillimetersToTwip(columnWidth),
+          docx.convertMillimetersToTwip(columnWidth)
         ]
       })
 
+      const marginHorizontal = this.documentOptions.margin.horizontal
+      const marginVertical = this.documentOptions.margin.vertical
       const doc = new docx.Document({
         sections: [
           {
+            properties: {
+              page: {
+                margin: {
+                  bottom: docx.convertMillimetersToTwip(marginVertical),
+                  left: docx.convertMillimetersToTwip(marginHorizontal),
+                  right: docx.convertMillimetersToTwip(marginHorizontal),
+                  top: docx.convertMillimetersToTwip(marginVertical)
+                },
+                size: {
+                  orientation: this.landscape
+                    ? docx.PageOrientation.LANDSCAPE
+                    : docx.PageOrientation.PORTRAIT
+                }
+              }
+            },
             children: [table]
           }
         ],
         styles: {
-          default: {
-            heading3: {
+          paragraphStyles: [
+            {
+              basedOn: 'Normal',
+              id: 'tableHeaderText',
+              name: 'Table Header Text',
+              next: 'Normal',
               run: {
                 bold: true,
+                font: {
+                  name: 'Arial'
+                },
                 size: 24
               }
             },
-            heading4: {
+            {
+              basedOn: 'Normal',
+              id: 'tableHeaderSubText',
+              name: 'Table Header Sub Text',
+              next: 'Normal',
               run: {
-                bold: true,
+                font: {
+                  name: 'Arial'
+                },
                 size: 22
               }
             },
-            heading5: {
+            {
+              basedOn: 'Normal',
+              id: 'tableCellBold',
+              name: 'Table Cell Bold',
+              next: 'Normal',
               run: {
-                bold: false,
+                bold: true,
+                font: {
+                  name: 'Arial'
+                },
                 size: 22
               }
             }
-          }
+          ]
         }
       })
 
-      docx.Packer.toBlob(doc).then((blob) => {
-        const mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        const docblob = blob.slice(0, blob.size, mimeType)
-
-        saveAs(docblob, 'Currículo BNCC.docx')
-      })
+      docx.Packer.toBlob(doc).then((blob) => saveAs(blob, 'Currículo BNCC.docx'))
     },
     filterContents(value: string, update: Function) {
       if (value === '') {
@@ -492,6 +553,8 @@ export default {
         const validKeys = [
           'curriculum',
           'forPrinting',
+          'justifyText',
+          'landscape',
           'selectedAgeGroup',
           'selectedArea',
           'selectedContent',
@@ -594,6 +657,18 @@ export default {
         if (typeof forPrinting !== 'boolean') {
           throw new Error(`Invalid forPrinting: ${forPrinting}`)
         }
+
+        const justifyText = dataToImport.justifyText
+
+        if (typeof justifyText !== 'boolean') {
+          throw new Error(`Invalid justifyText: ${justifyText}`)
+        }
+
+        const landscape = dataToImport.landscape
+
+        if (typeof landscape !== 'boolean') {
+          throw new Error(`Invalid landscape: ${landscape}`)
+        }
       } catch (e) {
         showError = true
       }
@@ -620,6 +695,8 @@ export default {
       this.curriculum = dataToImport.curriculum
 
       this.forPrinting = dataToImport.forPrinting
+      this.justifyText = dataToImport.justifyText
+      this.landscape = dataToImport.landscape
     },
     selectContentsTable() {
       const el = document.querySelector('.contents-table')
@@ -683,6 +760,18 @@ export default {
 
         if (forPrinting) {
           this.forPrinting = Boolean(Number(forPrinting))
+        }
+
+        const justifyText = window.localStorage.getItem('justifyText')
+
+        if (justifyText) {
+          this.justifyText = Boolean(Number(justifyText))
+        }
+
+        const landscape = window.localStorage.getItem('landscape')
+
+        if (landscape) {
+          this.landscape = Boolean(Number(landscape))
         }
 
         setTimeout(() => {
@@ -968,14 +1057,49 @@ export default {
 
       <q-tab-panel name="contents">
         <div class="q-mb-md row">
-          <q-toggle
-            color="green"
-            icon="print"
-            keep-color
-            label="Para impressão"
-            v-if="hasContents"
-            v-model="forPrinting"
-          />
+          <q-btn-dropdown color="orange" label="Opções">
+            <q-list bordered dark>
+              <q-item>
+                <q-item-section no-wrap side>
+                  <q-toggle
+                    class="q-mr-sm"
+                    color="orange"
+                    icon="print"
+                    keep-color
+                    label="Modo impressão"
+                    v-model="forPrinting"
+                    :disable="!hasContents"
+                  />
+                </q-item-section>
+              </q-item>
+
+              <q-item>
+                <q-item-section no-wrap side>
+                  <q-toggle
+                    color="orange"
+                    icon="format_align_justify"
+                    keep-color
+                    label="Texto justificado"
+                    v-model="justifyText"
+                    :disable="!hasContents"
+                  />
+                </q-item-section>
+              </q-item>
+
+              <q-item>
+                <q-item-section no-wrap side>
+                  <q-toggle
+                    color="orange"
+                    icon="landscape"
+                    keep-color
+                    label="Modo paisagem"
+                    v-model="landscape"
+                    :disable="!hasContents"
+                  />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
 
           <q-space />
 
@@ -993,7 +1117,7 @@ export default {
             </q-list>
           </q-btn-dropdown>
 
-          <q-btn-dropdown class="q-ml-sm" color="green" label="Exportar" v-if="hasContents">
+          <q-btn-dropdown class="q-ml-sm" color="green" label="Exportar" :disable="!hasContents">
             <q-list bordered dark>
               <q-item clickable v-close-popup :disable="!forPrinting" @click="selectContentsTable">
                 <q-item-section side>
@@ -1077,11 +1201,11 @@ export default {
                 ) in contentsExperienceFields"
                 :key="contentExperienceField"
               >
-                <td class="text-weight-bold">
+                <td :class="['text-weight-bold', { 'text-justify': justifyText }]">
                   {{ contentExperienceFieldIndex + 1 }}. {{ contentExperienceField }}
                 </td>
 
-                <td>
+                <td :class="{ 'text-justify': justifyText }">
                   <span
                     v-for="content in curriculum.experienceFields[contentExperienceField].contents"
                     :key="content"
@@ -1090,7 +1214,7 @@ export default {
                   </span>
                 </td>
 
-                <td>
+                <td :class="{ 'text-justify': forPrinting && justifyText }">
                   <q-input
                     dark
                     dense
@@ -1109,6 +1233,7 @@ export default {
 
                 <td
                   v-if="contentExperienceFieldIndex === 0"
+                  :class="{ 'text-justify': forPrinting && justifyText }"
                   :rowspan="Object.keys(curriculum.experienceFields).length"
                 >
                   <q-input
@@ -1118,7 +1243,6 @@ export default {
                     type="textarea"
                     v-model="curriculum.assessment"
                     v-if="!forPrinting"
-                    :input-style="{ resize: 'none' }"
                   />
 
                   <span class="span-pre" v-else v-text="curriculum.assessment"></span>
@@ -1164,7 +1288,6 @@ export default {
 
   td {
     border: 0.5px solid #fff;
-    text-align: justify;
     vertical-align: top;
 
     > span {
@@ -1199,6 +1322,6 @@ export default {
 }
 
 .span-pre {
-  white-space: pre;
+  white-space: pre-wrap;
 }
 </style>

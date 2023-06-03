@@ -38,6 +38,7 @@ a {
 
   .q-textarea .q-field__control textarea {
     resize: none;
+    text-align: unset;
     width: 50vw;
   }
 }
