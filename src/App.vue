@@ -371,6 +371,7 @@ export default {
                     (objective: string, objectiveIndex: number) =>
                       new docx.Paragraph({
                         alignment: this.justifyText ? docx.AlignmentType.JUSTIFIED : void 0,
+                        style: 'tableCellNormal',
                         text: `${objectiveIndex === 0 ? '(' + content + ') ' : ''}${objective}`
                       })
                   )
@@ -391,6 +392,7 @@ export default {
                 (strategy: string) =>
                   new docx.Paragraph({
                     alignment: this.justifyText ? docx.AlignmentType.JUSTIFIED : void 0,
+                    style: 'tableCellNormal',
                     text: strategy
                   })
               )
@@ -407,6 +409,7 @@ export default {
                   (assessmentLine: string) =>
                     new docx.Paragraph({
                       alignment: this.justifyText ? docx.AlignmentType.JUSTIFIED : void 0,
+                      style: 'tableCellNormal',
                       text: assessmentLine
                     })
                 ),
@@ -479,6 +482,18 @@ export default {
               basedOn: 'Normal',
               id: 'tableHeaderSubText',
               name: 'Table Header Sub Text',
+              next: 'Normal',
+              run: {
+                font: {
+                  name: 'Arial'
+                },
+                size: 22
+              }
+            },
+            {
+              basedOn: 'Normal',
+              id: 'tableCellNormal',
+              name: 'Table Cell Normal',
               next: 'Normal',
               run: {
                 font: {
