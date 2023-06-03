@@ -26,6 +26,18 @@ a {
 }
 
 .contents-table .q-textarea .q-field__control textarea {
-  resize: none;
   height: 100%;
+  resize: none;
+}
+
+.dialog-base64-import {
+  .q-card__section:not(:first-of-type) {
+    padding-top: unset;
+    padding-bottom: unset;
+  }
+
+  .q-textarea .q-field__control textarea {
+    resize: none;
+    width: 50vw;
+  }
 }

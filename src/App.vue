@@ -1,8 +1,8 @@
 <script lang="ts">
-// TODO Serialize/deserialize localStorage
-// TODO Export to Google Docs
+// TODO Export to Google Drive
 // TODO Integrate ChatGPT?
 
+import copy from 'copy-to-clipboard'
 import * as docx from 'docx'
 import { saveAs } from 'file-saver'
 import { useQuasar } from 'quasar'
@@ -13,6 +13,7 @@ export default {
       $q: useQuasar(),
       bnccData: null,
       confirmClearAll: false,
+      confirmImportBase64: false,
       curriculum: {
         assessment: '',
         experienceFields: {}
@@ -20,6 +21,7 @@ export default {
       error: false,
       filteredContentOptions: null,
       forPrinting: false,
+      importBase64Text: null,
       loading: true,
       selectedAgeGroup: null,
       selectedArea: null,
@@ -179,7 +181,7 @@ export default {
       this.selectedContent = null
 
       this.$q.notify({
-        color: 'green',
+        color: 'positive',
         icon: 'delete',
         message: 'Todos os conteúdos foram apagados',
         position: 'bottom-left',
@@ -198,7 +200,7 @@ export default {
       this.deselectContentsTable()
 
       this.$q.notify({
-        color: 'green',
+        color: 'positive',
         icon: 'content_copy',
         message: 'A tabela de conteúdos foi copiada para a área de transferência',
         position: 'bottom-left',
@@ -222,6 +224,226 @@ export default {
 
         sel.removeRange(range)
       }
+    },
+    exportBase64() {
+      const dataToExport = {
+        curriculum: this.curriculum,
+        forPrinting: this.forPrinting,
+        selectedAgeGroup: this.selectedAgeGroup,
+        selectedArea: this.selectedArea,
+        selectedContent: this.selectedContent,
+        selectedExperienceField: this.selectedExperienceField
+      }
+
+      const base64 = btoa(JSON.stringify(dataToExport))
+
+      const success = copy(base64, {
+        format: 'text/plain'
+      })
+
+      if (success) {
+        this.$q.notify({
+          color: 'positive',
+          icon: 'content_copy',
+          message: 'A base64 foi copiada para a área de transferência',
+          position: 'bottom-left',
+          timeout: 3000
+        })
+      } else {
+        this.$q.notify({
+          color: 'negative',
+          icon: 'error',
+          message: 'Erro ao copiar base64 para a área de transferência',
+          position: 'bottom-left',
+          timeout: 3000
+        })
+      }
+    },
+    exportDocx() {
+      const rows = [
+        new docx.TableRow({
+          children: [
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: 'CAMPO DE EXPERIÊNCIA'
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            }),
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: 'OBJETIVOS DE APRENDIZAGEM'
+                }),
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_5,
+                  text: '(Habilidades: o que a criança vai aprender)'
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            }),
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: 'ESTRATÉGIAS'
+                }),
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_5,
+                  text: '(Como ensinar/metodologia)'
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            }),
+            new docx.TableCell({
+              children: [
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_3,
+                  text: 'AVALIAÇÃO'
+                }),
+                new docx.Paragraph({
+                  alignment: docx.AlignmentType.CENTER,
+                  heading: docx.HeadingLevel.HEADING_5,
+                  text: '(Monitorar/analisar)'
+                })
+              ],
+              verticalAlign: docx.VerticalAlign.CENTER
+            })
+          ],
+          tableHeader: true
+        })
+      ]
+
+      for (const [rowIndex, experienceField] of this.contentsExperienceFields.entries()) {
+        const children = [
+          new docx.TableCell({
+            children: [
+              new docx.Paragraph({
+                heading: docx.HeadingLevel.HEADING_4,
+                text: `${rowIndex + 1}. ${experienceField}`
+              })
+            ]
+          })
+        ]
+
+        children.push(
+          new docx.TableCell({
+            children: this.curriculum.experienceFields[experienceField].contents
+              .map((content: string, contentIndex: number) => {
+                const contentResult = []
+
+                if (contentIndex > 0) {
+                  contentResult.push(new docx.Paragraph({}))
+                }
+
+                contentResult.push(
+                  this.bnccData.contentsByCode[content].objectives.map(
+                    (objective: string, objectiveIndex: number) =>
+                      new docx.Paragraph({
+                        text: `${objectiveIndex === 0 ? '(' + content + ') ' : ''}${objective}`
+                      })
+                  )
+                )
+
+                return contentResult.flat()
+              })
+              .flat()
+          })
+        )
+
+        children.push(
+          new docx.TableCell({
+            children: this.curriculum.experienceFields[experienceField].strategies
+              .replace(/\r/g, '')
+              .split('\n')
+              .map(
+                (strategy: string) =>
+                  new docx.Paragraph({
+                    text: strategy
+                  })
+              )
+          })
+        )
+
+        if (rowIndex === 0) {
+          children.push(
+            new docx.TableCell({
+              children: this.curriculum.assessment
+                .replace(/\r/g, '')
+                .split('\n')
+                .map(
+                  (assessmentLine: string) =>
+                    new docx.Paragraph({
+                      text: assessmentLine
+                    })
+                ),
+              rowSpan: this.contentsExperienceFields.length
+            })
+          )
+        }
+
+        rows.push(
+          new docx.TableRow({
+            children
+          })
+        )
+      }
+
+      const table = new docx.Table({
+        rows,
+        columnWidths: [
+          docx.convertMillimetersToTwip(159.2 * 0.25),
+          docx.convertMillimetersToTwip(159.2 * 0.25),
+          docx.convertMillimetersToTwip(159.2 * 0.25),
+          docx.convertMillimetersToTwip(159.2 * 0.25)
+        ]
+      })
+
+      const doc = new docx.Document({
+        sections: [
+          {
+            children: [table]
+          }
+        ],
+        styles: {
+          default: {
+            heading3: {
+              run: {
+                bold: true,
+                size: 24
+              }
+            },
+            heading4: {
+              run: {
+                bold: true,
+                size: 22
+              }
+            },
+            heading5: {
+              run: {
+                bold: false,
+                size: 22
+              }
+            }
+          }
+        }
+      })
+
+      docx.Packer.toBlob(doc).then((blob) => {
+        const mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        const docblob = blob.slice(0, blob.size, mimeType)
+
+        saveAs(docblob, 'Currículo BNCC.docx')
+      })
     },
     filterContents(value: string, update: Function) {
       if (value === '') {
@@ -260,177 +482,144 @@ export default {
           .sort((a: any, b: any) => a.label.localeCompare(b.label))
       })
     },
-    generateDocx() {
-      const rows = [
-        new docx.TableRow({
-          children: [
-            new docx.TableCell({
-              children: [
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
-                  text: "CAMPO DE EXPERIÊNCIA"
-                })
-              ],
-              verticalAlign: docx.VerticalAlign.CENTER
-            }),
-            new docx.TableCell({
-              children: [
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
-                  text: "OBJETIVOS DE APRENDIZAGEM"
-                }),
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_5,
-                  text: "(Habilidades: o que a criança vai aprender)"
-                })
-              ],
-              verticalAlign: docx.VerticalAlign.CENTER
-            }),
-            new docx.TableCell({
-              children: [
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
-                  text: "ESTRATÉGIAS"
-                }),
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_5,
-                  text: "(Como ensinar/metodologia)"
-                })
-              ],
-              verticalAlign: docx.VerticalAlign.CENTER
-            }),
-            new docx.TableCell({
-              children: [
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_3,
-                  text: "AVALIAÇÃO"
-                }),
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.CENTER,
-                  heading: docx.HeadingLevel.HEADING_5,
-                  text: "(Monitorar/analisar)"
-                })
-              ],
-              verticalAlign: docx.VerticalAlign.CENTER
-            })
-          ],
-          tableHeader: true
-        })
-      ]
-      for(const [rowIndex, experienceField] of this.contentsExperienceFields.entries()) {
-        const children = [
-          new docx.TableCell({
-            children: [
-              new docx.Paragraph({
-                heading: docx.HeadingLevel.HEADING_4,
-                text: `${rowIndex + 1}. ${experienceField}`
-              })
-            ]
-          })
+    importBase64() {
+      let dataToImport = null
+      let showError = false
+
+      try {
+        dataToImport = JSON.parse(atob(this.importBase64Text.trim()))
+
+        const validKeys = [
+          'curriculum',
+          'forPrinting',
+          'selectedAgeGroup',
+          'selectedArea',
+          'selectedContent',
+          'selectedExperienceField'
         ]
 
-        children.push(new docx.TableCell({
-          children: this.curriculum.experienceFields[experienceField].contents
-            .map((content: string, contentIndex: number) => {
-              const contentResult = []
+        for (const key of validKeys) {
+          if (Object.prototype.hasOwnProperty.call(dataToImport, key)) {
+            continue
+          }
 
-              if(contentIndex > 0) {
-                contentResult.push(new docx.Paragraph({}))
-              }
-
-              contentResult.push(
-                this.bnccData.contentsByCode[content].objectives
-                  .map((objective: string, objectiveIndex: number) => new docx.Paragraph({
-                    text: `${objectiveIndex === 0 ? '(' + content + ') ' : ''}${objective}`
-                  }))
-              )
-
-              return contentResult.flat()
-            })
-            .flat()
-        }))
-
-        children.push(new docx.TableCell({
-          children: this.curriculum.experienceFields[experienceField].strategies
-            .replace(/\r/g, '')
-            .split('\n')
-            .map((strategy: string) => new docx.Paragraph({
-              text: strategy
-            }))
-        }))
-
-        if(rowIndex === 0) {
-          children.push(new docx.TableCell({
-            children: this.curriculum.assessment
-              .replace(/\r/g, '')
-              .split('\n')
-              .map((assessmentLine: string) => new docx.Paragraph({
-                text: assessmentLine
-              })),
-            rowSpan: this.contentsExperienceFields.length
-          }))
+          throw new Error(`Expected key ${key} not found`)
         }
 
-        rows.push(new docx.TableRow({
-          children
-        }))
+        for (const key of Object.getOwnPropertyNames(dataToImport)) {
+          if (validKeys.includes(key)) {
+            continue
+          }
+
+          throw new Error(`Extra key ${key} found`)
+        }
+
+        const selectedArea = dataToImport.selectedArea
+
+        if (selectedArea !== null && !this.bnccData.areas.includes(selectedArea)) {
+          throw new Error(`Invalid selectedArea: ${selectedArea}`)
+        }
+
+        const selectedAgeGroup = dataToImport.selectedAgeGroup
+
+        if (selectedAgeGroup !== null && !this.bnccData.ageGroups.includes(selectedAgeGroup)) {
+          throw new Error(`Invalid selectedAgeGroup: ${selectedAgeGroup}`)
+        }
+
+        const selectedExperienceField = dataToImport.selectedExperienceField
+
+        if (
+          selectedExperienceField !== null &&
+          !this.bnccData.experienceFields.includes(selectedExperienceField)
+        ) {
+          throw new Error(`Invalid selectedExperienceField: ${selectedExperienceField}`)
+        }
+
+        const selectedContent = dataToImport.selectedContent
+
+        if (
+          selectedContent !== null &&
+          !Object.keys(this.bnccData.contentsByCode).includes(selectedContent)
+        ) {
+          throw new Error(`Invalid selectedContent: ${selectedContent}`)
+        }
+
+        const curriculum = dataToImport.curriculum
+
+        if (curriculum !== Object(curriculum)) {
+          throw new Error(`Invalid curriculum: ${curriculum}`)
+        }
+
+        const assessment = curriculum.assessment
+
+        if (assessment !== null && typeof assessment !== 'string') {
+          throw new Error(`Invalid assessment: ${assessment}`)
+        }
+
+        const experienceFields = curriculum.experienceFields
+
+        if (experienceFields !== Object(experienceFields)) {
+          throw new Error(`Invalid curriculum experienceFields: ${experienceFields}`)
+        }
+
+        for (const key of Object.keys(experienceFields)) {
+          if (!this.bnccData.experienceFields.includes(key)) {
+            throw new Error(`Invalid curriculum experienceField: ${key}`)
+          }
+
+          const experienceField = experienceFields[key]
+          const strategies = experienceField.strategies
+
+          if (strategies !== null && typeof strategies !== 'string') {
+            throw new Error(`Invalid curriculum experienceField strategies: ${strategies}`)
+          }
+
+          const contents = experienceField.contents
+
+          if (!Array.isArray(contents)) {
+            throw new Error(`Invalid curriculum experienceField contents: ${contents}`)
+          }
+
+          for (const content of contents) {
+            if (Object.prototype.hasOwnProperty.call(this.bnccData.contentsByCode, content)) {
+              continue
+            }
+
+            throw new Error(`Invalid curriculum experienceField content: ${content}`)
+          }
+        }
+
+        const forPrinting = dataToImport.forPrinting
+
+        if (typeof forPrinting !== 'boolean') {
+          throw new Error(`Invalid forPrinting: ${forPrinting}`)
+        }
+      } catch (e) {
+        showError = true
       }
 
-      const table = new docx.Table({
-        rows,
-        columnWidths: [
-          docx.convertMillimetersToTwip(159.2 * 0.25),
-          docx.convertMillimetersToTwip(159.2 * 0.25),
-          docx.convertMillimetersToTwip(159.2 * 0.25),
-          docx.convertMillimetersToTwip(159.2 * 0.25)
-        ]
-      })
+      this.importBase64Text = null
 
-      const doc = new docx.Document({
-        sections: [
-          {
-            children: [
-              table
-            ]
-          }
-        ],
-        styles: {
-          default: {
-            heading3: {
-              run: {
-                bold: true,
-                size: 24
-              }
-            },
-            heading4: {
-              run: {
-                bold: true,
-                size: 22
-              }
-            },
-            heading5: {
-              run: {
-                bold: false,
-                size: 22
-              }
-            }
-          }
-        }
-      })
-
-      docx.Packer.toBlob(doc)
-        .then(blob => {
-          const mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          const docblob = blob.slice(0, blob.size, mimeType)
-
-          saveAs(docblob, "Currículo BNCC.docx")
+      if (showError) {
+        this.$q.notify({
+          color: 'negative',
+          icon: 'error',
+          message: 'Erro ao importar base64',
+          position: 'bottom-left',
+          timeout: 3000
         })
+
+        return
+      }
+
+      this.selectedArea = dataToImport.selectedArea
+      this.selectedAgeGroup = dataToImport.selectedAgeGroup
+      this.selectedExperienceField = dataToImport.selectedExperienceField
+      this.selectedContent = dataToImport.selectedContent
+
+      this.curriculum = dataToImport.curriculum
+
+      this.forPrinting = dataToImport.forPrinting
     },
     selectContentsTable() {
       const el = document.querySelector('.contents-table')
@@ -515,7 +704,7 @@ export default {
     <q-circular-progress indeterminate rounded size="50px" color="lime" class="q-ma-md" />
   </q-card>
 
-  <q-card class="q-pa-md flex flex-center" dark v-if="error"> Erro carregando dados </q-card>
+  <q-card class="q-pa-md flex flex-center" dark v-if="error">Erro carregando dados</q-card>
 
   <q-card class="no-shadow" dark v-if="!loading && !error">
     <q-select
@@ -571,7 +760,7 @@ export default {
     >
       <template v-slot:no-option>
         <q-item>
-          <q-item-section class="text-grey"> Nenhum resultado </q-item-section>
+          <q-item-section class="text-grey">Nenhum resultado</q-item-section>
         </q-item>
       </template>
     </q-select>
@@ -582,7 +771,7 @@ export default {
       <q-card-section class="row items-center">
         <q-avatar color="negative" icon="error" text-color="white" />
 
-        <span class="q-ml-sm"> Tem certeza de que deseja limpar tudo? </span>
+        <span class="q-ml-sm">Tem certeza de que deseja limpar tudo?</span>
       </q-card-section>
 
       <q-card-actions align="right">
@@ -604,6 +793,26 @@ export default {
 
     <q-btn color="primary" label="Adicionar" :disable="!selectedContent" @click="addContent" />
   </div>
+
+  <q-dialog class="dialog-base64-import" v-model="confirmImportBase64">
+    <q-card class="no-shadow" dark>
+      <q-card-section class="row items-center">
+        <q-avatar color="primary" icon="code" text-color="white" />
+
+        <span class="q-ml-sm">Cole aqui o base64:</span>
+      </q-card-section>
+
+      <q-card-section>
+        <q-input autofocus dark dense filled type="textarea" v-model="importBase64Text" />
+      </q-card-section>
+
+      <q-card-actions align="right">
+        <q-btn color="negative" flat label="Cancelar" v-close-popup />
+
+        <q-btn color="positive" flat label="Importar" v-close-popup @click="importBase64" />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
 
   <q-card class="q-mt-md no-shadow" dark>
     <q-tabs
@@ -758,18 +967,33 @@ export default {
       </q-tab-panel>
 
       <q-tab-panel name="contents">
-        <div class="q-mb-md row" v-if="hasContents">
+        <div class="q-mb-md row">
           <q-toggle
             color="green"
             icon="print"
             keep-color
             label="Para impressão"
+            v-if="hasContents"
             v-model="forPrinting"
           />
 
           <q-space />
 
-          <q-btn-dropdown color="green" label="Exportar">
+          <q-btn-dropdown color="primary" label="Importar">
+            <q-list bordered dark>
+              <q-item clickable v-close-popup @click="confirmImportBase64 = true">
+                <q-item-section side>
+                  <q-icon name="code" />
+                </q-item-section>
+
+                <q-item-section>
+                  <q-item-label>Base64</q-item-label>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
+
+          <q-btn-dropdown class="q-ml-sm" color="green" label="Exportar" v-if="hasContents">
             <q-list bordered dark>
               <q-item clickable v-close-popup :disable="!forPrinting" @click="selectContentsTable">
                 <q-item-section side>
@@ -791,13 +1015,23 @@ export default {
                 </q-item-section>
               </q-item>
 
-              <q-item clickable v-close-popup @click="generateDocx">
+              <q-item clickable v-close-popup @click="exportDocx">
                 <q-item-section side>
                   <q-icon name="description" />
                 </q-item-section>
 
                 <q-item-section>
                   <q-item-label>DOCX</q-item-label>
+                </q-item-section>
+              </q-item>
+
+              <q-item clickable v-close-popup @click="exportBase64">
+                <q-item-section side>
+                  <q-icon name="code" />
+                </q-item-section>
+
+                <q-item-section>
+                  <q-item-label>Base64</q-item-label>
                 </q-item-section>
               </q-item>
             </q-list>
@@ -893,7 +1127,7 @@ export default {
             </tbody>
           </table>
 
-          <span v-else> Nenhum conteúdo adicionado </span>
+          <span v-else>Nenhum conteúdo adicionado</span>
         </div>
       </q-tab-panel>
     </q-tab-panels>
