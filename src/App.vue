@@ -713,6 +713,29 @@ export default {
       this.justifyText = dataToImport.justifyText
       this.landscape = dataToImport.landscape
     },
+    removeContent(experienceField: string, content: string) {
+      if (
+        Object.prototype.hasOwnProperty.call(this.curriculum.experienceFields, experienceField) ===
+        false
+      ) {
+        return
+      }
+
+      const experienceFieldContents = this.curriculum.experienceFields[experienceField].contents
+      const contentIndex = experienceFieldContents.indexOf(content)
+
+      if (contentIndex === -1) {
+        return
+      }
+
+      experienceFieldContents.splice(contentIndex, 1)
+
+      if (experienceFieldContents.length > 0) {
+        return
+      }
+
+      delete this.curriculum.experienceFields[experienceField]
+    },
     selectContentsTable() {
       const el = document.querySelector('.contents-table')
       const range = document.createRange()
@@ -734,6 +757,9 @@ export default {
         sel.addRange(range)
       }
     }
+  },
+  beforeCreate() {
+    this.$q.dark.set(true)
   },
   mounted() {
     fetch('data.json')
@@ -804,15 +830,14 @@ export default {
 </script>
 
 <template>
-  <q-card class="q-pa-md flex flex-center" dark v-if="loading">
+  <q-card class="q-pa-md flex flex-center no-shadow" v-if="loading">
     <q-circular-progress indeterminate rounded size="50px" color="lime" class="q-ma-md" />
   </q-card>
 
-  <q-card class="q-pa-md flex flex-center" dark v-if="error">Erro carregando dados</q-card>
+  <q-card class="q-pa-md flex flex-center" v-if="error">Erro carregando dados</q-card>
 
-  <q-card class="no-shadow" dark v-if="!loading && !error">
+  <q-card class="no-shadow" v-if="!loading && !error">
     <q-select
-      dark
       emit-value
       label="Área"
       outlined
@@ -824,7 +849,6 @@ export default {
 
     <q-select
       class="q-mt-sm"
-      dark
       emit-value
       label="Idade"
       outlined
@@ -836,7 +860,6 @@ export default {
 
     <q-select
       class="q-mt-sm"
-      dark
       emit-value
       label="Campo de Experiência"
       outlined
@@ -848,7 +871,6 @@ export default {
     <q-select
       class="q-mt-sm"
       clearable
-      dark
       emit-value
       filtered
       input-debounce="0"
@@ -870,8 +892,8 @@ export default {
     </q-select>
   </q-card>
 
-  <q-dialog persistent v-model="confirmClearAll">
-    <q-card class="no-shadow" dark>
+  <q-dialog persistent v-if="!loading && !error" v-model="confirmClearAll">
+    <q-card class="no-shadow">
       <q-card-section class="row items-center">
         <q-avatar color="negative" icon="error" text-color="white" />
 
@@ -886,7 +908,7 @@ export default {
     </q-card>
   </q-dialog>
 
-  <div class="q-mt-md row justify-end" v-if="selectedExperienceField">
+  <div class="q-mt-md row justify-end" v-if="!loading && !error && selectedExperienceField">
     <q-btn
       class="q-mr-sm"
       color="negative"
@@ -898,8 +920,8 @@ export default {
     <q-btn color="primary" label="Adicionar" :disable="!selectedContent" @click="addContent" />
   </div>
 
-  <q-dialog class="dialog-base64-import" v-model="confirmImportBase64">
-    <q-card class="no-shadow" dark>
+  <q-dialog class="dialog-base64-import" v-if="!loading && !error" v-model="confirmImportBase64">
+    <q-card class="no-shadow">
       <q-card-section class="row items-center">
         <q-avatar color="primary" icon="code" text-color="white" />
 
@@ -907,7 +929,7 @@ export default {
       </q-card-section>
 
       <q-card-section>
-        <q-input autofocus dark dense filled type="textarea" v-model="importBase64Text" />
+        <q-input autofocus dense filled type="textarea" v-model="importBase64Text" />
       </q-card-section>
 
       <q-card-actions align="right">
@@ -918,7 +940,7 @@ export default {
     </q-card>
   </q-dialog>
 
-  <q-card class="q-mt-md no-shadow" dark>
+  <q-card class="q-mt-md no-shadow" v-if="!loading && !error">
     <q-tabs
       active-color="secondary"
       align="justify"
@@ -935,14 +957,14 @@ export default {
 
     <q-separator />
 
-    <q-tab-panels animated dark v-model="tab">
+    <q-tab-panels animated v-model="tab">
       <q-tab-panel name="informations">
         <q-expansion-item
           group="informations"
           label="Direitos de aprendizagem"
           header-class="text-teal"
         >
-          <q-card dark>
+          <q-card>
             <q-card-section
               class="text-justify text-grey bncc-paragraph"
               v-for="learningRight in bnccData.learningRights"
@@ -961,7 +983,7 @@ export default {
           v-if="selectedExperienceField"
           :label="`(${selectedExperienceField}) Mais sobre o campo de experiência`"
         >
-          <q-card dark>
+          <q-card>
             <q-card-section
               class="text-justify text-grey bncc-paragraph"
               v-for="description in bnccData.experienceFieldsByName[selectedExperienceField]
@@ -981,7 +1003,7 @@ export default {
           v-if="selectedExperienceField"
           :label="`(${selectedExperienceField}) Orientações gerais quanto ao processo pedagógico`"
         >
-          <q-card dark>
+          <q-card>
             <q-card-section
               class="text-justify text-grey bncc-paragraph"
               v-for="orientation in bnccData.experienceFieldsByName[selectedExperienceField]
@@ -1001,7 +1023,7 @@ export default {
           v-if="selectedExperienceField"
           :label="`(${selectedExperienceField}) Direitos`"
         >
-          <q-card dark>
+          <q-card>
             <q-card-section
               class="text-justify text-grey bncc-paragraph"
               v-for="right in bnccData.experienceFieldsByName[selectedExperienceField].rights"
@@ -1020,7 +1042,7 @@ export default {
           v-if="selectedContent"
           :label="`(${selectedContent}) Objetivos de aprendizagem`"
         >
-          <q-card dark>
+          <q-card>
             <q-card-section
               class="text-justify text-grey bncc-paragraph"
               v-for="objective in bnccData.contentsByCode[selectedContent].objectives"
@@ -1039,7 +1061,7 @@ export default {
           v-if="selectedContent"
           :label="`(${selectedContent}) Abordagens das experiências de aprendizagem`"
         >
-          <q-card dark>
+          <q-card>
             <q-card-section
               class="text-justify text-grey bncc-paragraph"
               v-for="approach in bnccData.contentsByCode[selectedContent].approaches"
@@ -1058,7 +1080,7 @@ export default {
           v-if="selectedContent"
           :label="`(${selectedContent}) Sugestões para o currículo`"
         >
-          <q-card dark>
+          <q-card>
             <q-card-section
               class="text-justify text-grey bncc-paragraph"
               v-for="suggestion in bnccData.contentsByCode[selectedContent].suggestions"
@@ -1073,7 +1095,7 @@ export default {
       <q-tab-panel name="contents">
         <div class="q-mb-md row">
           <q-btn-dropdown color="orange" label="Opções">
-            <q-list bordered dark>
+            <q-list bordered>
               <q-item>
                 <q-item-section no-wrap side>
                   <q-toggle
@@ -1119,7 +1141,7 @@ export default {
           <q-space />
 
           <q-btn-dropdown color="primary" label="Importar">
-            <q-list bordered dark>
+            <q-list bordered>
               <q-item clickable v-close-popup @click="confirmImportBase64 = true">
                 <q-item-section side>
                   <q-icon name="code" />
@@ -1133,7 +1155,7 @@ export default {
           </q-btn-dropdown>
 
           <q-btn-dropdown class="q-ml-sm" color="green" label="Exportar" :disable="!hasContents">
-            <q-list bordered dark>
+            <q-list bordered>
               <q-item clickable v-close-popup :disable="!forPrinting" @click="selectContentsTable">
                 <q-item-section side>
                   <q-icon name="select_all" />
@@ -1221,17 +1243,28 @@ export default {
                 </td>
 
                 <td :class="{ 'text-justify': justifyText }">
-                  <span
+                  <div
                     v-for="content in curriculum.experienceFields[contentExperienceField].contents"
                     :key="content"
                   >
-                    ({{ content }}) {{ bnccData.contentsByCode[content].objectives[0] }}
-                  </span>
+                    <q-btn
+                      color="negative"
+                      dense
+                      icon="delete"
+                      round
+                      size="sm"
+                      v-if="!forPrinting"
+                      @click="removeContent(contentExperienceField, content)"
+                    />
+
+                    <span>
+                      ({{ content }}) {{ bnccData.contentsByCode[content].objectives[0] }}
+                    </span>
+                  </div>
                 </td>
 
                 <td :class="{ 'text-justify': forPrinting && justifyText }">
                   <q-input
-                    dark
                     dense
                     filled
                     type="textarea"
@@ -1252,7 +1285,6 @@ export default {
                   :rowspan="Object.keys(curriculum.experienceFields).length"
                 >
                   <q-input
-                    dark
                     dense
                     filled
                     type="textarea"
@@ -1305,8 +1337,10 @@ export default {
     border: 0.5px solid #fff;
     vertical-align: top;
 
-    > span {
-      display: block;
+    > div {
+      display: flex;
+      align-items: center;
+      column-gap: 10px;
 
       &:not(:first-of-type) {
         margin-top: 10px;
