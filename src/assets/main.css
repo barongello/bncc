@@ -1,0 +1,44 @@
+@import './base.css';
+
+.q-list--dark {
+  background: var(--q-dark);
+}
+
+#app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+
+  font-weight: normal;
+}
+
+a {
+  text-decoration: none;
+  transition: 0.4s;
+}
+
+.contents-table .q-textarea {
+  height: 100%;
+}
+
+.contents-table .q-textarea .q-field__control {
+  height: 100%;
+}
+
+.contents-table .q-textarea .q-field__control textarea {
+  height: 100%;
+  resize: none;
+}
+
+.dialog-base64-import {
+  .q-card__section:not(:first-of-type) {
+    padding-top: unset;
+    padding-bottom: unset;
+  }
+
+  .q-textarea .q-field__control textarea {
+    resize: none;
+    text-align: unset;
+    width: 50vw;
+  }
+}
